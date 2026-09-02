@@ -65,7 +65,7 @@ Clone this repository into `/kaggle/working`, keep competition data under `/kagg
 Train:
 
 ```python
-!python scripts/train.py \
+!python -m scripts/train \
     --config configs/config.yaml \
     --data_root /kaggle/input/competitions/filament-segmentation-2026/MAGFiLO_1.0_Kaggle_2026 \
     --output_dir /kaggle/working/outputs
@@ -74,7 +74,7 @@ Train:
 Predict:
 
 ```python
-!python scripts/predict.py \
+!python -m scripts/predict \
     --config configs/config.yaml \
     --data_root /kaggle/input/competitions/filament-segmentation-2026/MAGFiLO_1.0_Kaggle_2026 \
     --checkpoint /kaggle/working/outputs/best_unet.pth \
