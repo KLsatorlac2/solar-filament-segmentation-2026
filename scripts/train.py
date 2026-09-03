@@ -35,6 +35,12 @@ def main():
     parser.add_argument('--config', default='configs/config.yaml')  # Path to the config file
     parser.add_argument('--data_root', default=None)  # Optional: Path to the root of the dataset
     parser.add_argument('--output_dir', default=None)  # Optional: Path to the output directory
+    parser.add_argument(
+        "--loss",
+        default=None,
+        choices=["bce_dice", "focal", "focal_dice", "tversky"],
+        help="Loss function. Overrides training.loss in the config.",
+    )
     args = parser.parse_args()  # Parse the arguments
 
     with open(args.config, 'r', encoding='utf-8') as f:
@@ -51,7 +57,7 @@ def main():
     print(f'Data:   {data_root}')
     print(f'Output: {out}')
 
-    loss_name = cfg["training"].get("loss", "bce_dice")
+    loss_name = args.loss or cfg["training"].get("loss", "bce_dice")
     loss_fn = get_loss_function(loss_name)
     print(f"Loss:   {loss_name}")
 
