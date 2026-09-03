@@ -9,17 +9,17 @@ from tqdm import tqdm
 
 from src.data.dataset import make_loaders
 from src.models.unet import UNet
-from src.utils.losses import dice_score, iou_score, bce_dice_loss
+from src.utils.losses import dice_score, iou_score, get_loss_function
 from src.utils.utils import seed_everything
 
-def run_epoch(model, loader, optimizer, device, train=True):
+def run_epoch(model, loader, optimizer, device, loss_fn, train=True):
     model.train(train)
     total_loss = total_dice = total_iou = 0.0
     for images, masks in tqdm(loader, leave=False):
         images, masks = images.to(device), masks.to(device)
         with torch.set_grad_enabled(train):
             logits = model(images)
-            loss = bce_dice_loss(logits, masks)
+            loss = loss_fn(logits, masks)
             if train:
                 optimizer.zero_grad(set_to_none=True)
                 loss.backward()
@@ -32,10 +32,10 @@ def run_epoch(model, loader, optimizer, device, train=True):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', default='configs/config.yaml')
-    parser.add_argument('--data_root', default=None)
-    parser.add_argument('--output_dir', default=None)
-    args = parser.parse_args()
+    parser.add_argument('--config', default='configs/config.yaml')  # Path to the config file
+    parser.add_argument('--data_root', default=None)  # Optional: Path to the root of the dataset
+    parser.add_argument('--output_dir', default=None)  # Optional: Path to the output directory
+    args = parser.parse_args()  # Parse the arguments
 
     with open(args.config, 'r', encoding='utf-8') as f:
         cfg = yaml.safe_load(f)
@@ -51,6 +51,10 @@ def main():
     print(f'Data:   {data_root}')
     print(f'Output: {out}')
 
+    loss_name = cfg["training"].get("loss", "bce_dice")
+    loss_fn = get_loss_function(loss_name)
+    print(f"Loss:   {loss_name}")
+
     train_loader, val_loader, n_train, n_val = make_loaders(
         data_root, cfg['data']['image_size'], cfg['training']['batch_size'],
         cfg['training']['num_workers'], cfg['data']['val_ratio'], cfg['seed'])
@@ -63,15 +67,20 @@ def main():
     best_dice, bad_epochs, history = -1.0, 0, []
 
     for epoch in range(1, cfg['training']['epochs'] + 1):
-        train_loss, train_dice, train_iou = run_epoch(model, train_loader, optimizer, device, True)
-        val_loss, val_dice, val_iou = run_epoch(model, val_loader, optimizer, device, False)
+        train_loss, train_dice, train_iou = run_epoch(model, train_loader, optimizer, device, loss_fn, True)
+        val_loss, val_dice, val_iou = run_epoch(model, val_loader, optimizer, device, loss_fn, False)
         scheduler.step(val_dice)
+
         row = {'epoch': epoch, 'train_loss': train_loss, 'val_loss': val_loss,
                'train_dice': train_dice, 'val_dice': val_dice,
                'train_iou': train_iou, 'val_iou': val_iou}
         history.append(row)
+        current_lr = optimizer.param_groups[0]["lr"]
+
         print(f'Epoch {epoch:03d} | loss {train_loss:.4f}/{val_loss:.4f} | '
-              f'Dice {train_dice:.4f}/{val_dice:.4f} | IoU {train_iou:.4f}/{val_iou:.4f}')
+              f'Dice {train_dice:.4f}/{val_dice:.4f} | IoU {train_iou:.4f}/{val_iou:.4f}'
+              f' | LR {current_lr:.4f}')
+
         if val_dice > best_dice:
             best_dice, bad_epochs = val_dice, 0
             torch.save(model.state_dict(), out / 'best_unet.pth')

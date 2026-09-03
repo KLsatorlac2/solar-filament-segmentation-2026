@@ -6,6 +6,11 @@ import torch.nn.functional as F
 
 
 class DoubleConv(nn.Module):
+    '''
+        两次卷积
+        第一次卷积：提取局部特征
+        第二次卷积：特征整合
+    '''
     def __init__(self, in_ch, out_ch):
         super().__init__()
         self.block = nn.Sequential(
@@ -26,7 +31,7 @@ class UNet(nn.Module):
         super().__init__()
         self.downs = nn.ModuleList()
         self.ups = nn.ModuleList()
-        in_ch = 3
+        in_ch = 3  # 输入通道数RGB
         for f in features:
             self.downs.append(DoubleConv(in_ch, f))
             in_ch = f
@@ -40,6 +45,7 @@ class UNet(nn.Module):
             self.ups.append(DoubleConv(f * 2, f))
             in_ch = f
         self.head = nn.Conv2d(features[0], 1, 1)
+        # 输出通道数1 得到[B, 1, H, W] 模型输出logits 预测时进行sigmoid
 
     def forward(self, x):
         skips = []

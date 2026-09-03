@@ -43,14 +43,17 @@ class MagfiloDataset(Dataset):
 
         image = cv2.resize(image, (self.image_size, self.image_size), interpolation=cv2.INTER_AREA)
         mask = cv2.resize(mask, (self.image_size, self.image_size), interpolation=cv2.INTER_NEAREST)
+        # mask 使用 cv2.INTER_NEAREST : 因为 mask 是 0/1，使用双线性插值可能产生小数
 
         if self.train:
             image, mask = augment(image, mask)
 
-        image = image.astype(np.float32) / 255.0
-        image = (image - 0.5) / 0.5
+        image = image.astype(np.float32) / 255.0   # [0,1]
+        image = (image - 0.5) / 0.5                # [-1,1]
         image = torch.from_numpy(image.transpose(2, 0, 1)).float()
+        # OpenCV/NumPy: HWC -> PyTorch CNN: CHW
         mask = torch.from_numpy(mask[None].astype(np.float32))
+        # eg: image [3, 512, 512], mask [1, 512, 512]
         return image, mask
 
 
@@ -120,14 +123,17 @@ def make_mask(annotations, height, width):
 
 
 def augment(image, mask):
-    if random.random() < 0.5:
+    '''
+        image 与 mask 同步增强
+    '''
+    if random.random() < 0.5: # 水平翻转
         image = np.fliplr(image).copy()
         mask = np.fliplr(mask).copy()
-    if random.random() < 0.5:
+    if random.random() < 0.5: # 垂直翻转
         image = np.flipud(image).copy()
         mask = np.flipud(mask).copy()
     k = random.randint(0, 3)
-    if k:
+    if k: # 随机旋转
         image = np.rot90(image, k).copy()
         mask = np.rot90(mask, k).copy()
     return image, mask

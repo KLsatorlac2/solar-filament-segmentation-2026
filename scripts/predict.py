@@ -21,6 +21,7 @@ def predict_image(model, path, size, device):
     x = small.astype(np.float32) / 255.0
     x = (x - 0.5) / 0.5
     x = torch.from_numpy(x.transpose(2, 0, 1)).unsqueeze(0).float().to(device)
+    # unsqueeze batch dimension [1, 3, size, size]
     with torch.no_grad():
         prob = torch.sigmoid(model(x))[0, 0].cpu().numpy()
     return cv2.resize(prob, (w, h), interpolation=cv2.INTER_LINEAR)
@@ -51,6 +52,7 @@ def main():
         prob = predict_image(model, path, cfg['data']['image_size'], device)
         binary = (prob >= args.threshold).astype(np.uint8)
         n, labels, stats, _ = cv2.connectedComponentsWithStats(binary, 8)
+        # filter small components
         component_id = 0
         for label in range(1, n):
             if stats[label, cv2.CC_STAT_AREA] < args.min_area:
@@ -58,6 +60,7 @@ def main():
             component_id += 1
             component = (labels == label).astype(np.uint8)
             rle = mask_utils.encode(np.asfortranarray(component))
+            # component mask -> COCO RLE(Run-Length Encoding, 游程编码)
             counts = rle['counts'].decode('utf-8') if isinstance(rle['counts'], bytes) else rle['counts']
             rows.append({'filament_id': f'{path.stem}_{component_id}', 'segmentation_rle': counts})
 
