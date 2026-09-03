@@ -67,6 +67,9 @@ def main():
     print(f'Train images: {n_train} | Val images: {n_val}')
 
     model = UNet(tuple(cfg['model']['features'])).to(device)
+    # 多 GPU 训练优化（Kaggle GPU T4 * 2）
+    if torch.cuda.device_count() > 1:
+        model = torch.nn.DataParallel(model)
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg['training']['learning_rate'],
                                   weight_decay=cfg['training']['weight_decay'])
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=2)
