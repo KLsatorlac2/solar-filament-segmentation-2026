@@ -3,7 +3,7 @@ seed: 42
 data:
   # Leave null for portability; pass --data_root on Kaggle.
   root: null
-  image_size: 512
+  image_size: 768
   val_ratio: 0.15
 
 training:
