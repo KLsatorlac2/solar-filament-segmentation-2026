@@ -126,16 +126,38 @@ def augment(image, mask):
     '''
         image 与 mask 同步增强
     '''
-    if random.random() < 0.5: # 水平翻转
+    # Horizontal flip
+    if random.random() < 0.5:
         image = np.fliplr(image).copy()
         mask = np.fliplr(mask).copy()
-    if random.random() < 0.5: # 垂直翻转
+
+    # Vertical flip
+    if random.random() < 0.5:
         image = np.flipud(image).copy()
         mask = np.flipud(mask).copy()
+
+    # Random rotation
     k = random.randint(0, 3)
-    if k: # 随机旋转
+    if k:
         image = np.rot90(image, k).copy()
         mask = np.rot90(mask, k).copy()
+
+    # Random brightness
+    if random.random() < 0.5:
+        delta = random.randint(-25, 25)
+        image = np.clip(
+            image.astype(np.int16) + delta, 0, 255
+        ).astype(np.uint8)
+
+    # Random contrast
+    if random.random() < 0.5:
+        alpha = random.uniform(0.8, 1.2)
+        image = (
+            np.clip(
+                image.astype(np.float32) * alpha,0,255,
+            ).astype(np.uint8)
+        )
+
     return image, mask
 
 
