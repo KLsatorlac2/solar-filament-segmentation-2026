@@ -24,7 +24,7 @@ def build_model(model_name, features):
     if model_name == "unet":
         return UNet(features)
 
-    if model_name == "unet_plus_plus":
+    if model_name == "unet++":
         return UNetPlusPlus(features=features)
 
     raise ValueError(
