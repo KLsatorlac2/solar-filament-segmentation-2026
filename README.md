@@ -16,6 +16,10 @@ U-Net++ 通过更加密集的嵌套 Skip Connection，使不同尺度的特征�
 
 ### 主要修改
 
+显存优化：
+* 混合精度 AMP
+* 减小 batch size
+
 新增模型文件：
 
 ```text
@@ -67,13 +71,11 @@ Filament Mask
 
 为了保证实验具有可比性，本版本保持以下内容不变：
 
-* v0.4.0 使用的输入分辨率
 * v0.4.0 最优 Loss
 * 数据增强策略
 * Optimizer
 * Learning Rate
 * Scheduler
-* Batch Size
 * Multi-GPU 训练方式
 * Train / Validation 划分
 * Prediction 后处理
