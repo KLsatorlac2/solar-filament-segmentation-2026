@@ -32,7 +32,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', default='configs/config.yaml')
     parser.add_argument('--data_root', default=None)
-    parser.add_argument('--checkpoint', default='/kaggle/working/outputs/best_unet.pth')
+    parser.add_argument('--checkpoint', default='/kaggle/working/outputs/best_model.pth')
     parser.add_argument('--threshold', type=float, default=0.5)
     parser.add_argument('--min_area', type=int, default=100)
     parser.add_argument('--output', default='/kaggle/working/outputs/submission.csv')

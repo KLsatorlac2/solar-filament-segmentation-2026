@@ -146,7 +146,7 @@ def main():
                 # nn.DataParallel wraps the model, so we need to access the module attribute
             else:
                 state_dict = model.state_dict()
-            torch.save(state_dict, out / f'best_{model_name}.pth')
+            torch.save(state_dict, out / 'best_model.pth')
         else:
             bad_epochs += 1
             if bad_epochs >= cfg['training']['patience']:
