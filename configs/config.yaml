@@ -3,13 +3,13 @@ seed: 42
 data:
   # Leave null for portability; pass --data_root on Kaggle.
   root: null
-  image_size: 1024
+  image_size: 768
   val_ratio: 0.15
 
 training:
-  batch_size: 4
+  batch_size: 8
   num_workers: 2
-  epochs: 30
+  epochs: 20
   learning_rate: 0.001
   weight_decay: 0.0001
   patience: 7  # Early Stopping 如果连续 7 个 epoch 验证集 Dice 没有改善：停止训练

@@ -18,7 +18,10 @@ U-Net++ 通过更加密集的嵌套 Skip Connection，使不同尺度的特征�
 
 显存优化：
 * 混合精度 AMP
-* 减小 batch size
+* 减小分辨率
+
+快速实验：
+* 减小 epoch
 
 新增模型文件：
 

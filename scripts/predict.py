@@ -9,6 +9,8 @@ import yaml
 from pycocotools import mask as mask_utils
 from tqdm import tqdm
 
+from src.models.unet import UNet
+from src.models.unet_plus_plus import UNetPlusPlus
 from scripts.train import build_model
 
 def predict_image(model, path, size, device):
