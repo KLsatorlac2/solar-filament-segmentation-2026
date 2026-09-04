@@ -9,7 +9,7 @@ import yaml
 from pycocotools import mask as mask_utils
 from tqdm import tqdm
 
-from src.scripts.train import build_model
+from scripts.train import build_model
 
 def predict_image(model, path, size, device):
     image = cv2.imread(str(path), cv2.IMREAD_COLOR)
