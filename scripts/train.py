@@ -32,23 +32,44 @@ def build_model(model_name, features):
         f"Available models: unet, unet_plus_plus"
     )
 
-def run_epoch(model, loader, optimizer, device, loss_fn, train=True):
+def run_epoch(model, loader, optimizer, device, loss_fn, scaler, train=True,):
     model.train(train)
-    total_loss = total_dice = total_iou = 0.0
+
+    total_loss = 0.0
+    total_dice = 0.0
+    total_iou = 0.0
+
     for images, masks in tqdm(loader, leave=False):
-        images, masks = images.to(device), masks.to(device)
+        images = images.to(device, non_blocking=True)
+        masks = masks.to(device, non_blocking=True)
+
+        if train:
+            optimizer.zero_grad(set_to_none=True)
+
         with torch.set_grad_enabled(train):
-            logits = model(images)
-            loss = loss_fn(logits, masks)
+            with torch.amp.autocast(
+                device_type="cuda",
+                enabled=(device.type == "cuda"),
+            ):
+                logits = model(images)
+                loss = loss_fn(logits, masks)
+
             if train:
-                optimizer.zero_grad(set_to_none=True)
-                loss.backward()
-                optimizer.step()
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+
         total_loss += loss.item()
         total_dice += dice_score(logits, masks).item()
         total_iou += iou_score(logits, masks).item()
+
     n = max(1, len(loader))
-    return total_loss / n, total_dice / n, total_iou / n
+
+    return (
+        total_loss / n,
+        total_dice / n,
+        total_iou / n,
+    )
 
 def main():
     parser = argparse.ArgumentParser()
@@ -97,13 +118,15 @@ def main():
         model = torch.nn.DataParallel(model)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg['training']['learning_rate'],
-                                  weight_decay=cfg['training']['weight_decay'])
+        weight_decay=cfg['training']['weight_decay'])
+    scaler = torch.amp.GradScaler("cuda", enabled=(device.type == "cuda"),)
+    print(f"AMP:    {device.type == 'cuda'}")
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=2)
     best_dice, bad_epochs, history = -1.0, 0, []
 
     for epoch in range(1, cfg['training']['epochs'] + 1):
-        train_loss, train_dice, train_iou = run_epoch(model, train_loader, optimizer, device, loss_fn, True)
-        val_loss, val_dice, val_iou = run_epoch(model, val_loader, optimizer, device, loss_fn, False)
+        train_loss, train_dice, train_iou = run_epoch(model, train_loader, optimizer, device, loss_fn, scaler, True)
+        val_loss, val_dice, val_iou = run_epoch(model, val_loader, optimizer, device, loss_fn, scaler, False)
         scheduler.step(val_dice)
 
         row = {'epoch': epoch, 'train_loss': train_loss, 'val_loss': val_loss,
