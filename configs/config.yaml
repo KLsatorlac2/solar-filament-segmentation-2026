@@ -7,7 +7,7 @@ data:
   val_ratio: 0.15
 
 training:
-  batch_size: 8
+  batch_size: 16
   num_workers: 2
   epochs: 30
   learning_rate: 0.001
@@ -16,7 +16,7 @@ training:
   loss: bce_dice
 
 model:
-  name: unet++
+  name: unet
   features: [32, 64, 128, 256]
 
 output:
