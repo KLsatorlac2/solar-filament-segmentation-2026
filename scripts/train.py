@@ -92,7 +92,12 @@ def main():
 
         if val_dice > best_dice:
             best_dice, bad_epochs = val_dice, 0
-            torch.save(model.state_dict(), out / 'best_unet.pth')
+            if isinstance(model, torch.nn.DataParallel):
+                state_dict = model.module.state_dict()
+                # nn.DataParallel wraps the model, so we need to access the module attribute
+            else:
+                state_dict = model.state_dict()
+            torch.save(state_dict, out / 'best_unet.pth')
         else:
             bad_epochs += 1
             if bad_epochs >= cfg['training']['patience']:
