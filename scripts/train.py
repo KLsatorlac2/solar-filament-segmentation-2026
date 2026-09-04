@@ -9,8 +9,28 @@ from tqdm import tqdm
 
 from src.data.dataset import make_loaders
 from src.models.unet import UNet
+from src.models.unet_plus_plus import UNetPlusPlus
 from src.utils.losses import dice_score, iou_score, get_loss_function
 from src.utils.utils import seed_everything
+
+
+def build_model(model_name, features):
+    """
+    Build the segmentation model according to the model name.
+    """
+
+    features = tuple(features)
+
+    if model_name == "unet":
+        return UNet(features)
+
+    if model_name == "unet_plus_plus":
+        return UNetPlusPlus(features=features)
+
+    raise ValueError(
+        f"Unsupported model: {model_name}. "
+        f"Available models: unet, unet_plus_plus"
+    )
 
 def run_epoch(model, loader, optimizer, device, loss_fn, train=True):
     model.train(train)
@@ -35,12 +55,14 @@ def main():
     parser.add_argument('--config', default='configs/config.yaml')  # Path to the config file
     parser.add_argument('--data_root', default=None)  # Optional: Path to the root of the dataset
     parser.add_argument('--output_dir', default=None)  # Optional: Path to the output directory
+    parser.add_argument("--model", default=None, help="Segmentation model to use.", )
     parser.add_argument(
         "--loss",
         default=None,
         choices=["bce_dice", "focal", "focal_dice", "tversky"],
         help="Loss function. Overrides training.loss in the config.",
     )
+
     args = parser.parse_args()  # Parse the arguments
 
     with open(args.config, 'r', encoding='utf-8') as f:
@@ -50,6 +72,7 @@ def main():
     data_root = args.data_root or cfg['data']['root']
     if not data_root:
         raise ValueError('Please provide --data_root or set data.root in the config.')
+
     out = Path(args.output_dir or cfg['output']['dir'])
     out.mkdir(parents=True, exist_ok=True)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -66,10 +89,13 @@ def main():
         cfg['training']['num_workers'], cfg['data']['val_ratio'], cfg['seed'])
     print(f'Train images: {n_train} | Val images: {n_val}')
 
-    model = UNet(tuple(cfg['model']['features'])).to(device)
+    model_name = args.model or cfg["model"].get("name", "unet")
+    model = build_model(model_name, cfg['model']['features']).to(device)
+    print(f"Model: {model_name}")
     # 多 GPU 训练优化（Kaggle GPU T4 * 2）
     if torch.cuda.device_count() > 1:
         model = torch.nn.DataParallel(model)
+
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg['training']['learning_rate'],
                                   weight_decay=cfg['training']['weight_decay'])
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=2)
@@ -97,7 +123,7 @@ def main():
                 # nn.DataParallel wraps the model, so we need to access the module attribute
             else:
                 state_dict = model.state_dict()
-            torch.save(state_dict, out / 'best_unet.pth')
+            torch.save(state_dict, out / f'best_{model_name}.pth')
         else:
             bad_epochs += 1
             if bad_epochs >= cfg['training']['patience']:

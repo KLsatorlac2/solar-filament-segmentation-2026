@@ -9,7 +9,7 @@ import yaml
 from pycocotools import mask as mask_utils
 from tqdm import tqdm
 
-from src.models.unet import UNet
+from src.scripts.train import build_model
 
 def predict_image(model, path, size, device):
     image = cv2.imread(str(path), cv2.IMREAD_COLOR)
@@ -34,6 +34,7 @@ def main():
     parser.add_argument('--threshold', type=float, default=0.5)
     parser.add_argument('--min_area', type=int, default=100)
     parser.add_argument('--output', default='/kaggle/working/outputs/submission.csv')
+    parser.add_argument("--model", default=None, help="Segmentation model to use.", )
     args = parser.parse_args()
 
     with open(args.config, 'r', encoding='utf-8') as f:
@@ -43,7 +44,8 @@ def main():
         raise FileNotFoundError(f'Data root not found: {root}')
     test_dir = root / 'test' / 'test_images'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = UNet(tuple(cfg['model']['features'])).to(device)
+    model_name = args.model or cfg["model"].get("name", "unet")
+    model = build_model(model_name, cfg['model']['features']).to(device)
     model.load_state_dict(torch.load(args.checkpoint, map_location=device))
     model.eval()
 

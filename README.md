@@ -1,94 +1,85 @@
 # Solar Filament Segmentation 2026
 
-基于 U-Net 的太阳暗条（Solar Filament）图像分割项目，用于参加 **Kaggle Solar Filament Segmentation Challenge 2026**。
+基于 U-Net / U-Net++ 的太阳暗条（Solar Filament）图像分割项目，用于参加 **Kaggle Solar Filament Segmentation Challenge 2026**。
 
 ---
 
-## v0.4.0 — Data Augmentation Experiment
+## v0.5.0 — U-Net++ Architecture Experiment
 
 ### 实验目的
 
-在 v0.3.0 的基础上，测试**数据增强策略优化**是否能够提高模型的泛化能力。
+在 v0.4.0 的基础上，测试**网络结构优化**是否能够进一步提高太阳暗条分割性能。
 
-Solar Filament 通常表现为细长、不规则的暗色结构，不同 H-Alpha 图像之间可能存在亮度和对比度差异。
+v0.4.0 主要优化了数据增强策略，本版本保持数据处理和训练配置基本不变，将原有的 **U-Net** 替换为 **U-Net++**。
 
-因此，本版本在原有空间增强的基础上加入**亮度和对比度增强**，模拟不同图像条件。
-
-### 基础修改
-
-config 修改:
-
-* 分辨率调整到 1024 × 1024
-* batch size 调整到 8
-
-训练优化:
-* 多 GPU 训练
+U-Net++ 通过更加密集的嵌套 Skip Connection，使不同尺度的特征进行更加充分的融合，从而增强模型对太阳暗条**细长结构和复杂边界**的分割能力。
 
 ### 主要修改
-原有数据增强：
 
-* 水平翻转
-* 垂直翻转
-* 90° / 180° / 270°随机旋转
-
-新增：
-
-* Random Brightness
-* Random Contrast
-
-数据处理流程：
+新增模型文件：
 
 ```text
-原始图像
-    ↓
-Resize
-    ↓
-随机水平/垂直翻转
-    ↓
-随机旋转
-    ↓
-随机亮度调整
-    ↓
-随机对比度调整
-    ↓
-Normalize
-    ↓
-模型训练
+src/models/unet_plus_plus.py
 ```
 
-### 具体参数
+训练时可以通过参数选择模型：
 
-亮度变化：
-
-```python
-delta = random.randint(-25, 25)
+```bash
+python -m scripts.train --model unet
 ```
 
-对比度变化：
+或：
 
-```python
-alpha = random.uniform(0.8, 1.2)
+```bash
+python -m scripts.train --model unet_plus_plus
+```
+### 模型结构
+
+* Encoder
+* Bottleneck
+* Nested Decoder
+* Dense Skip Connections
+* Segmentation Head
+
+U-Net++ 的特征变化：
+
+```text
+输入图像
+    ↓
+Encoder
+    ↓
+空间分辨率逐渐降低
+    ↓
+Bottleneck
+    ↓
+Nested Decoder
+    ↓
+多层 Skip Connection 特征融合
+    ↓
+恢复空间分辨率
+    ↓
+Segmentation Head
+    ↓
+Filament Mask
 ```
 
-这些增强只作用于 **image**，不会修改 segmentation mask。
-
----
-
-## 保持不变
+### 保持不变
 
 为了保证实验具有可比性，本版本保持以下内容不变：
 
-* U-Net 网络结构
-* v0.3.0 使用的输入分辨率
-* v0.3.0 最优 Loss
+* v0.4.0 使用的输入分辨率
+* v0.4.0 最优 Loss
+* 数据增强策略
 * Optimizer
 * Learning Rate
 * Scheduler
+* Batch Size
+* Multi-GPU 训练方式
 * Train / Validation 划分
 * Prediction 后处理
 
 因此，本版本主要研究：
 
-> **增加亮度和对比度增强后，模型的泛化能力是否得到改善。**
+> **将 U-Net 替换为 U-Net++ 后，网络结构是否能够进一步提高太阳暗条分割性能。**
 
 ---

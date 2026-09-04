@@ -16,6 +16,7 @@ training:
   loss: bce_dice
 
 model:
+  name: unet
   features: [32, 64, 128, 256]
 
 output:
