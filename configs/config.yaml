@@ -9,14 +9,14 @@ data:
 training:
   batch_size: 8
   num_workers: 2
-  epochs: 20
+  epochs: 30
   learning_rate: 0.001
   weight_decay: 0.0001
   patience: 7  # Early Stopping 如果连续 7 个 epoch 验证集 Dice 没有改善：停止训练
   loss: bce_dice
 
 model:
-  name: unet
+  name: unet++
   features: [32, 64, 128, 256]
 
 output:

@@ -58,7 +58,7 @@ def main():
         n, labels, stats, _ = cv2.connectedComponentsWithStats(binary, 8)
         # filter small components
         component_id = 0
-        for label in range(1, n):
+        for label in range(1, n): # label starts from 1 过滤前景
             if stats[label, cv2.CC_STAT_AREA] < args.min_area:
                 continue
             component_id += 1
