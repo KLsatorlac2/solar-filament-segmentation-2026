@@ -2,498 +2,277 @@
 
 基于深度学习的太阳暗条（Solar Filament）图像分割项目，用于参加 **Kaggle Solar Filament Segmentation Challenge 2026**。
 
-项目主要针对 H-Alpha 太阳图像中的 Solar Filament 进行像素级分割。
-
 ---
 
-## Version
+## v2.0.0 — SegFormer
 
-### v1.0.0 — DeepLabV3+
+### 实验目的
 
-在 v0.x 系列 U-Net / U-Net++ 实验的基础上，引入 **DeepLabV3+** 作为新的分割架构。
+在前面的 U-Net / U-Net++ / DeepLabV3+ 模型基础上，引入 **Transformer-based Segmentation Model：SegFormer**，测试 Transformer 架构在 Solar Filament Segmentation 任务上的表现。
 
 本版本主要研究：
 
-> **相比 U-Net++，DeepLabV3+ 是否能够利用更大的感受野和多尺度上下文信息，提高 Solar Filament 的分割效果。**
+> **SegFormer 是否能够利用 Transformer 的全局特征建模能力，更好地分割太阳暗条这种细长、复杂的目标结构。**
 
 ---
 
-## Experiment Purpose
+## 模型结构
 
-v0.x 版本主要基于：
+本版本使用 **SegFormer + MiT-B0 Encoder**。
+
+整体流程：
 
 ```text
-U-Net
-   ↓
-U-Net++
-   ↓
-Loss Optimization
-   ↓
-Resolution Optimization
-   ↓
-Data Augmentation
-   ↓
-Post-processing
-   ↓
-TTA
-   ↓
-Multi-resolution Ensemble
+Input H-Alpha Image
+        │
+        ↓
+   MiT-B0 Encoder
+        │
+        ↓
+ Multi-scale Features
+        │
+        ↓
+ SegFormer Decoder
+        │
+        ↓
+ Segmentation Logits
+        │
+        ↓
+   Final Upsample
+        │
+        ↓
+ Binary Segmentation Mask
 ```
 
-v1.0.0 开始进入新的模型架构实验阶段：
+SegFormer 与之前的 CNN-based segmentation models 不同，主要使用 Transformer Encoder 提取图像特征。
+
+### MiT-B0 Encoder
+
+MiT（Mix Transformer）负责从输入图像中提取不同尺度的特征：
 
 ```text
-U-Net++
-    ↓
+Input
+  │
+  ↓
+MiT Stage 1
+  │
+  ↓
+MiT Stage 2
+  │
+  ↓
+MiT Stage 3
+  │
+  ↓
+MiT Stage 4
+  │
+  ↓
+Multi-scale Features
+```
+
+这些不同尺度的特征随后输入 SegFormer Decoder。
+
+### SegFormer Decoder
+
+Decoder 对不同尺度的特征进行融合，并生成最终的 segmentation logits。
+
+最终输出：
+
+```text
+[B, 1, H, W]
+```
+
+其中：
+
+* `B`：Batch Size
+* `1`：Solar Filament segmentation channel
+* `H, W`：输入图像空间尺寸
+
+---
+
+## 主要修改
+
+### 1. 新增 SegFormer 模型
+
+新增：
+
+```text
+src/models/segformer.py
+```
+
+使用 Hugging Face Transformers 提供的 SegFormer 实现，并使用：
+
+```text
+nvidia/mit-b0
+```
+
+作为 MiT-B0 backbone。
+
+---
+
+### 2. Training Framework 支持 SegFormer
+
+修改：
+
+```text
+scripts/train.py
+```
+
+增加：
+
+```text
+--model segformer
+```
+
+因此可以通过：
+
+```bash
+python -m scripts.train --model segformer
+```
+
+启动 SegFormer 训练。
+
+当前训练框架支持：
+
+```text
+UNet
+UNet++
 DeepLabV3+
+SegFormer
 ```
-
-本版本不再继续修改 U-Net++，而是使用 DeepLabV3+ 进行独立模型对比。
 
 ---
 
-## Model
+### 3. 输出保持统一
 
-### DeepLabV3+
-
-当前版本采用 **ResNet50** 作为 Backbone，并结合 ASPP 和 Decoder：
+SegFormer 最终输出经过 Upsample 恢复到输入图像尺寸：
 
 ```text
-Input Image
-     │
-     ↓
- ResNet50 Backbone
-     │
-     ├──────────────────────────────┐
-     │                              │
-     ↓                              ↓
-Layer1                         Layer4
-(Low-level)                 (High-level)
-     │                              │
-     ↓                              ↓
-  1×1 Conv                         ASPP
-     │                              │
-     │                              ↓
-     │                           Upsample
-     │                              │
-     └──────────────┬───────────────┘
-                    ↓
-               Concatenate
-                    ↓
-                 Decoder
-                    ↓
-             Segmentation Logits
-                    ↓
-              Final Upsample
-                    ↓
-             Segmentation Mask
+Input
+  ↓
+SegFormer
+  ↓
+Low-resolution Logits
+  ↓
+Bilinear Upsampling
+  ↓
+Original Resolution
 ```
 
-其中：
-
-* **Low-level Feature**：来自 ResNet50 的 Layer1，保留较丰富的空间和边缘信息。
-* **High-level Feature**：来自 ResNet50 的 Layer4，包含更强的语义和上下文信息。
-* **ASPP**：对 High-level Feature 进行多尺度上下文提取。
-* **Decoder**：融合 High-level 和 Low-level Feature，并恢复空间细节。
+因此可以继续使用项目现有的 Loss、Validation 和 Prediction Pipeline。
 
 ---
 
-## Backbone
+## Pretrained
 
-使用 **ResNet50** 作为 Encoder / Backbone。
-
-主要提取：
-
-* Low-level features
-* High-level semantic features
-
-当前实现中：
+本版本使用：
 
 ```text
-Layer1 → Low-level features
-Layer2 → Intermediate features
-Layer3 → High-level features
-Layer4 → High-level features
+nvidia/mit-b0
 ```
 
-其中最终使用：
+作为预训练模型。
+
+Encoder 使用预训练参数，Segmentation Head 根据当前任务重新设置为：
 
 ```text
-Layer1 → Low-level Feature
-Layer4 → High-level Feature
+num_labels = 1
 ```
 
-Low-level features 主要包含：
-
-* 边缘
-* 纹理
-* 局部空间信息
-
-High-level features 主要包含：
-
-* Filament 语义信息
-* 更大的上下文信息
-* 更大的感受野
+用于二分类 Solar Filament Segmentation。
 
 ---
 
-## ASPP
+## 保持不变
 
-DeepLabV3+ 的核心组件之一是：
+为了保证不同模型之间的实验具有可比性，本版本暂时不改变：
 
-**Atrous Spatial Pyramid Pooling (ASPP)**
+* Dataset
+* Train / Validation Split
+* Image Preprocessing
+* Data Augmentation
+* Loss Function
+* Optimizer
+* Learning Rate
+* Scheduler
+* Batch Size
+* AMP
+* Validation Metrics
+* Post-processing
+* TTA
+* Ensemble
 
-当前实现使用不同 dilation rate 的并行卷积：
+因此本版本主要改变：
 
-```text
-                    ┌─ 1×1 Conv
-                    │
-High-level Feature ─┼─ 3×3 Conv, dilation=6
-                    │
-                    ├─ 3×3 Conv, dilation=12
-                    │
-                    └─ 3×3 Conv, dilation=18
-                             ↓
-                        Concatenate
-                             ↓
-                         Projection
-```
+> **Segmentation Model Architecture**
 
-通过不同 dilation rate 获取不同尺度的上下文信息。
-
-相比普通卷积，Atrous Convolution 可以：
-
-> 在不大幅增加计算量的情况下扩大感受野。
-
-这对于 Solar Filament 这种具有细长结构、尺度变化明显的目标具有一定意义。
-
----
-
-## Decoder
-
-DeepLabV3+ 与 DeepLabV3 的主要区别之一是增加了 Decoder。
-
-当前实现的完整数据流为：
-
-```text
-                         ┌─ Layer1
-                         │
-Input → ResNet50 ────────┤      ↓
-                         │   1×1 Conv
-                         │      ↓
-                         │      │
-                         └─ Layer4
-                                ↓
-                               ASPP
-                                ↓
-                             Upsample
-                                ↓
-                         ┌──────┘
-                         ↓
-                    Concatenate
-                         ↓
-                      Decoder
-                         ↓
-                 Segmentation Logits
-                         ↓
-                   Final Upsample
-                         ↓
-                  Segmentation Mask
-```
-
-其中：
-
-```text
-Layer1
-  ↓
-Low-level Feature
-  ↓
-1×1 Conv
-  ↓
-保留空间细节
-```
-
-而：
-
-```text
-Layer4
-  ↓
-ASPP
-  ↓
-Upsample
-  ↓
-High-level Feature
-```
-
-最后：
-
-```text
-Low-level Feature
-        +
-High-level Feature
-        ↓
-   Concatenate
-        ↓
-     Decoder
-        ↓
-Segmentation
-```
-
-这样可以同时利用：
-
-* High-level Feature 的语义信息
-* Low-level Feature 的空间细节
-
-从而改善目标边界和细小结构的恢复。
-
----
-
-## Input / Output
-
-输入：
-
-```text
-RGB H-Alpha Image
-```
-
-模型输入尺寸根据 `configs/config.yaml` 中的：
-
-```yaml
-data:
-  image_size: ...
-```
-
-确定。
-
-输出：
-
-```text
-1-channel segmentation logits
-```
-
-经过：
-
-```text
-Sigmoid
-   ↓
-Probability Map
-   ↓
-Threshold
-   ↓
-Binary Mask
-```
-
-得到最终 Solar Filament segmentation mask。
+而不是同时改变多个实验变量。
 
 ---
 
 ## Training
 
-为了保证模型之间的对比更加公平，本版本尽量保持 v0.x 的训练流程不变。
-
-保持：
-
-* Train / Validation split
-* Loss
-* Optimizer
-* Learning Rate
-* Weight Decay
-* Batch Size
-* Data Augmentation
-* AMP
-* Early Stopping
-* Evaluation method
-
-主要变化：
-
-```text
-v0.x
-
-U-Net / U-Net++
-        ↓
-    Segmentation
-
-
-v1.0.0
-
-DeepLabV3+
-        ↓
-    Segmentation
-```
-
----
-
-## Training Command
-
-从项目根目录运行：
+首先测试模型：
 
 ```bash
-python -m scripts.train \
-    --model deeplabv3plus \
-    --loss bce_dice
+python -m scripts.train --model segformer
 ```
 
-如果使用 YAML 中的默认配置，也可以直接：
-
-```bash
-python -m scripts.train --model deeplabv3plus
-```
-
-训练完成后保存：
+模型权重默认保存为：
 
 ```text
-outputs/
-└── best_model.pth
+best_model.pth
 ```
 
 ---
 
 ## Prediction
 
-使用训练好的 DeepLabV3+ 模型进行预测：
-
-```bash
-python -m scripts.predict \
-    --config configs/config.yaml \
-    --data_root <DATA_ROOT> \
-    --checkpoint outputs/best_model.pth \
-    --output outputs/submission.csv
-```
+SegFormer 训练完成后，将使用对应的 SegFormer checkpoint 进行预测。
 
 预测流程：
 
 ```text
-DeepLabV3+
+Test Image
     ↓
-Segmentation Logits
+Resize
     ↓
-Sigmoid
+SegFormer
     ↓
 Probability Map
     ↓
 Threshold
     ↓
-Binary Mask
+Post-processing
+    ↓
+Final Segmentation Mask
     ↓
 Submission
 ```
 
 ---
 
-## Comparison with v0.x
+## Experiment Comparison
 
-### v0.x
+当前项目已经包含多个 segmentation architectures：
 
-主要模型：
+| Version | Model           | Main Architecture    |
+| ------- | --------------- | -------------------- |
+| v0.x    | U-Net / U-Net++ | CNN                  |
+| v1.0.0  | DeepLabV3+      | ResNet50 + ASPP      |
+| v2.0.0  | SegFormer       | Transformer + MiT-B0 |
+| v3.0.0  | SAM             | Foundation Model     |
+
+v2.0.0 的核心对比对象是：
 
 ```text
-U-Net
 U-Net++
-```
-
-特点：
-
-* Encoder-Decoder
-* Skip Connection
-* U-Net++ 使用 Nested Skip Connections
-* 更强调局部空间信息和多尺度特征融合
-
-### v1.0.0
-
-主要模型：
-
-```text
+    ↓
 DeepLabV3+
+    ↓
+SegFormer
 ```
 
-特点：
-
-* ResNet50 Backbone
-* Atrous Convolution
-* ASPP
-* Low-level Feature Fusion
-* Decoder
-* 更大的感受野
-* 多尺度上下文信息
-
-简单对比：
-
-| Version  | Model                     | Main Feature              |
-| -------- | ------------------------- | ------------------------- |
-| v0.1     | U-Net                     | Encoder-Decoder           |
-| v0.2     | U-Net + Loss Optimization | Loss                      |
-| v0.3     | U-Net + Resolution        | Input Resolution          |
-| v0.4     | U-Net + Augmentation      | Data Augmentation         |
-| v0.5     | U-Net++                   | Nested Skip Connections   |
-| v0.6     | U-Net++                   | Post-processing           |
-| v0.7     | U-Net++                   | TTA                       |
-| v0.8     | U-Net++                   | Multi-resolution Ensemble |
-| **v1.0** | **DeepLabV3+**            | **ASPP + Decoder**        |
-
----
-
-## Evaluation
-
-本项目最终评价指标主要参考 Kaggle 比赛要求。
-
-主要包括：
-
-### Quantitative Comparison
-
-* Panoptic Quality (PQ)
-* Dice Score Distribution
-* IoU Score Distribution
-* One-to-many relationship
-* Many-to-one relationship
-
-由于当前比赛对 PQ 的具体计算细节仍需要进一步确认，因此当前模型实验阶段主要使用：
-
-```text
-Dice
-IoU
-```
-
-进行模型之间的初步比较。
-
----
-
-## Current Pipeline
-
-当前 v1.0.0 Pipeline：
-
-```text
-H-Alpha Image
-      ↓
-Preprocessing
-      ↓
-Resize
-      ↓
-Normalization
-      ↓
-DeepLabV3+
-      ↓
-ResNet50 Backbone
-      │
-      ├───────────────┐
-      ↓               ↓
-  Layer1           Layer4
-      ↓               ↓
-  1×1 Conv          ASPP
-      │               ↓
-      │            Upsample
-      │               │
-      └───────┬───────┘
-              ↓
-         Concatenate
-              ↓
-           Decoder
-              ↓
-     Segmentation Logits
-              ↓
-        Final Upsample
-              ↓
-      Segmentation Mask
-```
+通过统一的数据集、Loss 和验证流程，对不同架构进行比较。
 
 ---
 
@@ -515,7 +294,8 @@ solar-filament-segmentation-2026/
 │   │   ├── __init__.py
 │   │   ├── unet.py
 │   │   ├── unet_plus_plus.py
-│   │   └── deeplabv3_plus.py
+│   │   ├── deeplabv3_plus.py
+│   │   └── segformer.py
 │   └── utils/
 │       ├── __init__.py
 │       ├── losses.py
