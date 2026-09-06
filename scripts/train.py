@@ -11,6 +11,7 @@ from src.data.dataset import make_loaders
 from src.models.unet import UNet
 from src.models.unet_plus_plus import UNetPlusPlus
 from src.models.deeplabv3_plus import DeepLabV3Plus
+from src.models.segformer import SegFormer
 
 from src.utils.losses import dice_score, iou_score, get_loss_function
 from src.utils.utils import seed_everything
@@ -20,18 +21,15 @@ def build_model(model_name, features):
     """
     Build the segmentation model according to the model name.
     """
-
     features = tuple(features)
-
     if model_name == "unet":
         return UNet(features)
-
     if model_name == "unet++":
         return UNetPlusPlus(features=features)
-
     if model_name == "deeplabv3plus":
         return DeepLabV3Plus(pretrained=True)
-
+    if model_name == "segformer":
+        return SegFormer(pretrained=True)
     raise ValueError(f"Unsupported model: {model_name}. ")
 
 def run_epoch(model, loader, optimizer, device, loss_fn, scaler, train=True,):

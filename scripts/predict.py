@@ -12,6 +12,7 @@ from tqdm import tqdm
 from src.models.unet import UNet
 from src.models.unet_plus_plus import UNetPlusPlus
 from src.models.deeplabv3_plus import DeepLabV3Plus
+from src.models.segformer import SegFormer
 from scripts.train import build_model
 
 def predict_image(model, path, size, device):
