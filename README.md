@@ -4,81 +4,104 @@
 
 ---
 
-## v0.7.0 — Test-Time Augmentation
+## v0.8.0 — Different Resolution Model Ensemble
 
 ### 实验目的
 
-在 v0.6.0 的基础上，测试 **Test-Time Augmentation（TTA）** 是否能够进一步提高模型的预测效果。
+在 v0.7.0 的 TTA 基础上，测试**不同输入分辨率的 U-Net++ 模型进行 Ensemble** 是否能够进一步提高最终预测效果。
 
-本版本不重新训练模型，而是在预测阶段对同一张图像进行不同的空间变换，再将预测结果恢复到原始方向并进行融合。
+不同输入分辨率的模型具有不同的特征提取能力：
+
+* 低分辨率模型具有更低的计算成本，同时能够学习整体结构
+* 高分辨率模型能够保留更多细节，对较小或较细的 Filament 更敏感
+
+因此，本版本使用两个不同输入分辨率训练得到的 U-Net++ 模型进行预测融合。
 
 ### 基础修改
 
 模型：
 
-* 保持 v0.5.0 的 U-Net++
-* 使用已有模型权重
-* 不重新训练模型
+* 使用两个 U-Net++ 模型
+* Model A：输入分辨率 512×512
+* Model B：输入分辨率 1024×1024
+* 两个模型使用各自训练得到的最优权重
+* 不重新训练 Ensemble 模型
 
 预测：
 
-* 原图预测
-* 水平翻转预测
-* 垂直翻转预测
-* 水平 + 垂直翻转预测
-* 对多个预测结果进行平均融合
+* 同一张测试图像分别输入两个模型
+* 每个模型使用自己的输入分辨率
+* 将两个模型输出的 Probability Map 恢复到原始图像尺寸
+* 对两个 Probability Map 进行平均融合
 
 ### 主要修改
 
-原有预测流程：
+单模型预测：
 
 ```text
-Model
-  ↓
+Test Image
+    ↓
+U-Net++
+    ↓
 Probability Map
-  ↓
+    ↓
 Threshold
-  ↓
+    ↓
 Post-processing
-  ↓
+    ↓
 Submission
 ```
 
 本版本：
 
 ```text
-Original Image
+                    ┌─ U-Net++ @ 512 ──┐
+Test Image ─────────┤                  ├─ Probability Map ─┐
+                    └─ U-Net++ @ 1024 ─┘                  │
+                                                          ↓
+                                                   Average Fusion
+                                                          ↓
+                                                    Threshold
+                                                          ↓
+                                              Connected Components
+                                                          ↓
+                                               Minimum Area Filter
+                                                          ↓
+                                                     Submission
+```
+
+Probability Fusion：
+
+```text
+final_prob = (prob_512 + prob_1024) / 2
+```
+
+两个模型的 Probability Map 在融合前都会 resize 到原始测试图像尺寸。
+
+### 后处理
+
+保持 v0.6.0 的后处理流程：
+
+```text
+Probability Map
       ↓
- ┌────┼────┬────┐
- ↓    ↓    ↓    ↓
-原图  水平  垂直  水平+垂直
- ↓    ↓    ↓    ↓
- └────┼────┴────┘
+Threshold = 0.4
       ↓
-Probability Fusion
-      ↓
-Threshold
+Binary Mask
       ↓
 Connected Components
       ↓
-Minimum Area Filtering
+Minimum Area = 100
       ↓
-Submission
+Final Filament Mask
 ```
 
-TTA 预测结果：
-
-```python
-final_prob = (prob_original + prob_h + prob_v + prob_hv) / 4
-```
+Threshold 和 Minimum Area 沿用之前实验得到的参数。
 
 ### 保持不变
 
-为了保证实验具有可比性，本版本保持以下内容不变：
-
 * U-Net++ 网络结构
 * Loss
-* 输入分辨率
 * 数据增强
 * Optimizer
 * Learning Rate
@@ -86,12 +109,15 @@ final_prob = (prob_original + prob_h + prob_v + prob_hv) / 4
 * Batch Size
 * AMP
 * Train / Validation 划分
-* 模型权重
-* v0.6.0 最优 Threshold
-* v0.6.0 最优 Minimum Area
+* v0.5.0 模型训练策略
+* v0.6.0 后处理方法
+* v0.7.0 后处理参数
 
-因此，本版本主要研究：
+本版本主要新增：
 
-> **在保持模型和后处理参数不变的情况下，加入 TTA 是否能够进一步改善最终预测结果。**
+> **使用不同输入分辨率训练得到的两个 U-Net++ 模型进行 Probability Map Ensemble。**
+
+通过融合 512×512 和 1024×1024 模型的预测结果，希望同时利用不同尺度下的特征信息，提高 Solar Filament 分割结果。
 
 ---
+#### 注：本人未完成该实验，读者可自行实验验证
