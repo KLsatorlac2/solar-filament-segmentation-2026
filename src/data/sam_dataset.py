@@ -1,7 +1,7 @@
 import numpy as np
 import torch
-from torch.utils.data import Dataset
 import torch.nn.functional as F
+from torch.utils.data import Dataset
 
 
 class SAMDataset(Dataset):
@@ -37,19 +37,19 @@ class SAMDataset(Dataset):
         mask_np = mask.squeeze(0).numpy()
         ys, xs = np.where(mask_np > 0)
 
-        if len(xs) == 0:
-            point = np.array(
-                [[self.image_size / 2, self.image_size / 2]],
-                dtype=np.float32,
-            )
-            label = np.array([0], dtype=np.int64)
-        else:
+        if len(xs) > 0:
             i = np.random.randint(len(xs))
             point = np.array(
                 [[xs[i], ys[i]]],
                 dtype=np.float32,
             )
             label = np.array([1], dtype=np.int64)
+        else:
+            point = np.array(
+                [[self.image_size / 2, self.image_size / 2]],
+                dtype=np.float32,
+            )
+            label = np.array([0], dtype=np.int64)
 
         return {
             "image": image,

@@ -32,15 +32,13 @@ def main():
 
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--checkpoint", required=True)
-
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--image_size", type=int, default=1024)
     parser.add_argument("--lr", type=float, default=1e-4)
-
     parser.add_argument(
         "--output",
-        default="outputs/best_sam.pth"
+        default="outputs/best_sam.pth",
     )
 
     args = parser.parse_args()
@@ -54,7 +52,7 @@ def main():
         exist_ok=True,
     )
 
-    train_records, val_records = load_records(
+    train_records, _ = load_records(
         args.data_root,
         val_ratio=0.15,
         seed=42,
@@ -122,9 +120,7 @@ def main():
                 non_blocking=True,
             )
 
-            optimizer.zero_grad(
-                set_to_none=True
-            )
+            optimizer.zero_grad(set_to_none=True)
 
             pred_masks, _ = model(
                 images,
@@ -151,9 +147,7 @@ def main():
 
             total_loss += loss.item()
 
-        avg_loss = (
-            total_loss / len(train_loader)
-        )
+        avg_loss = total_loss / len(train_loader)
 
         print(
             f"Epoch {epoch + 1}/{args.epochs} "
@@ -161,7 +155,6 @@ def main():
         )
 
         if avg_loss < best_loss:
-
             best_loss = avg_loss
 
             torch.save(
@@ -169,9 +162,7 @@ def main():
                 args.output,
             )
 
-            print(
-                f"Saved: {args.output}"
-            )
+            print(f"Saved: {args.output}")
 
 
 if __name__ == "__main__":
