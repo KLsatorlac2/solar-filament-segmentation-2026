@@ -39,7 +39,6 @@ class SAM(nn.Module):
         masks = self.sam.postprocess_masks(
             low_res_masks,
             input_size=image.shape[-2:],
-            original_image_size=image.shape[-2:],
         )
 
         return masks, iou_predictions
