@@ -16,12 +16,19 @@ class SAM(nn.Module):
             for p in self.sam.prompt_encoder.parameters():
                 p.requires_grad = False
 
-        self.sam.train()
+        for p in self.sam.mask_decoder.parameters():
+            p.requires_grad = True
+
+        self.sam.image_encoder.eval()
+        self.sam.prompt_encoder.eval()
+        self.sam.mask_decoder.train()
 
     def forward(self, image, point_coords, point_labels):
-        image_embeddings = self.sam.image_encoder(image)
-
         with torch.no_grad():
+            image_embeddings = self.sam.image_encoder(
+                self.sam.preprocess(image)
+            )
+
             sparse_embeddings, dense_embeddings = self.sam.prompt_encoder(
                 points=(point_coords, point_labels),
                 boxes=None,
@@ -38,7 +45,8 @@ class SAM(nn.Module):
 
         masks = self.sam.postprocess_masks(
             low_res_masks,
-            input_size=image.shape[-2:],
+            image.shape[-2:],
+            image.shape[-2:],
         )
 
         return masks, iou_predictions

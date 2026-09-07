@@ -1,7 +1,7 @@
-import cv2
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+import torch.nn.functional as F
 
 
 class SAMDataset(Dataset):
@@ -15,19 +15,24 @@ class SAMDataset(Dataset):
     def __getitem__(self, idx):
         image, mask = self.base_dataset[idx]
 
+        image = image * 0.5 + 0.5
+        image = image.clamp(0, 1)
+
         if image.shape[-2:] != (self.image_size, self.image_size):
-            image = torch.nn.functional.interpolate(
+            image = F.interpolate(
                 image.unsqueeze(0),
                 size=(self.image_size, self.image_size),
                 mode="bilinear",
                 align_corners=False,
             ).squeeze(0)
 
-            mask = torch.nn.functional.interpolate(
+            mask = F.interpolate(
                 mask.unsqueeze(0),
                 size=(self.image_size, self.image_size),
                 mode="nearest",
             ).squeeze(0)
+
+        image = image * 255.0
 
         mask_np = mask.squeeze(0).numpy()
         ys, xs = np.where(mask_np > 0)
